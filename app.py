@@ -58,11 +58,44 @@ st.markdown('<p class="main-header">📈 Keyword Master Pro</p>', unsafe_allow_h
 st.markdown('<p class="sub-header">아이템스카우트 데이터 정밀 분석 프리미엄 대시보드</p>', unsafe_allow_html=True)
 
 # 대시보드 분석 기준 안내
-with st.expander("💡 분석 기준 안내"):
-    c1, c2, c3 = st.columns(3)
-    c1.info("**사계절 스테디**\n- 평균 3천↑\n- 변동폭 30% 미만\n- 탄탄한 수요")
-    c2.warning("**시즌 트렌드**\n- 피크월 대비 4개월 전 추천\n- 특정 월 수요 폭증")
-    c3.success("**성장 키워드**\n- 꾸준히 우상향\n- 상승률에 따른 유형 분류")
+with st.expander("💡 분석 기준 안내 (자세히 보려면 클릭)"):
+    st.markdown("""
+    <div style="background-color: white; padding: 10px; border-radius: 10px;">
+    <table style="width:100%; border-collapse: collapse; font-size: 14px; text-align: center;">
+        <tr style="background-color: #F1F5F9; font-weight: bold; border-bottom: 2px solid #E2E8F0;">
+            <th style="padding: 12px;">구분</th>
+            <th style="padding: 12px;">지표명</th>
+            <th style="padding: 12px;">기준점 (수치)</th>
+            <th style="padding: 12px;">의미</th>
+        </tr>
+        <tr style="border-bottom: 1px solid #F1F5F9;">
+            <td style="padding: 10px; font-weight: 600;">공통</td>
+            <td style="padding: 10px;">규모 등급</td>
+            <td style="padding: 10px;">Gold: 1만↑ / Silver: 5천↑ / Bronze: 3천↑</td>
+            <td style="padding: 10px; color: #64748B;">시장의 크기를 한눈에 파악</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #F1F5F9;">
+            <td style="padding: 10px; font-weight: 600;">사계절</td>
+            <td style="padding: 10px;">안정성</td>
+            <td style="padding: 10px;">A+: 변동 10%↓ / A: 20%↓ / B: 30%↓</td>
+            <td style="padding: 10px; color: #64748B;">수요가 얼마나 기복 없이 탄탄한가</td>
+        </tr>
+        <tr style="border-bottom: 1px solid #F1F5F9;">
+            <td style="padding: 10px; font-weight: 600;">시즌</td>
+            <td style="padding: 10px;">소싱타이밍</td>
+            <td style="padding: 10px;">피크월 대비 4개월 전</td>
+            <td style="padding: 10px; color: #64748B;">노출 선점을 위한 준비 시점</td>
+        </tr>
+        <tr>
+            <td style="padding: 10px; font-weight: 600;">성장</td>
+            <td style="padding: 10px;">성장 유형</td>
+            <td style="padding: 10px;">폭발: 월평균 20%↑ / 꾸준: 월평균 5~20%↑</td>
+            <td style="padding: 10px; color: #64748B;">상승 곡선의 가파른 정도 확인</td>
+        </tr>
+    </table>
+    </div>
+    """, unsafe_allow_html=True)
+    st.markdown("<br>", unsafe_allow_html=True)
 
 col1, col2 = st.columns([1, 2], gap="large")
 
@@ -169,10 +202,11 @@ with col2:
                         get_styled_excel(writer, results, highlight_map, month_names)
                     
                     st.markdown("---")
+                    file_name = f"키워드분석_{act_cat}_{month_names[0]}~{month_names[-1]}.xlsx"
                     st.download_button(
                         label="📥 정밀 분석 리포트 다운로드 (Excel)",
                         data=output.getvalue(),
-                        file_name=f"Result_{act_cat}.xlsx",
+                        file_name=file_name,
                         mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
                     )
                 except Exception as e:
