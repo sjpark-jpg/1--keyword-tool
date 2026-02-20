@@ -113,12 +113,12 @@ with col1:
 
     uploaded = st.file_uploader("", accept_multiple_files=True, label_visibility="collapsed", key=f"uploader_{st.session_state['file_key']}")
     
-    # 버튼 나란히 배치
+    # 버튼 나란히 배치 (사이즈 동일 및 우측 정렬 느낌 유지)
     btn_col1, btn_col2 = st.columns(2)
     with btn_col1:
-        analyze_btn = st.button("🚀 정밀 분석 시작")
+        analyze_btn = st.button("🚀 정밀 분석 시작", use_container_width=True)
     with btn_col2:
-        if st.button("🗑️ 일괄 삭제"):
+        if st.button("🗑️ 일괄 삭제", use_container_width=True):
             st.session_state['file_key'] += 1
             st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
