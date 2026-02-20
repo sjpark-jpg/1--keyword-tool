@@ -13,13 +13,46 @@ st.markdown("""
 <style>
     @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
     html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
-    .stApp { background-color: #F8FAFC; }
+    
+    /* 전체 배경 및 텍스트 색상 최적화 (다크모드 대응) */
+    .stApp { background-color: transparent; }
+    
     .main-header { font-size: 2.2rem; font-weight: 700; color: #1E293B; margin-bottom: 0.5rem; text-align: center; }
-    .sub-header { font-size: 1rem; color: #64748B; margin-bottom: 2rem; text-align: center; }
-    .metric-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    /* 다크모드일 때 헤더 색상 자동 조절을 위해 클래스 대신 직접 스타일 적용 권장되나 스타일 유지 */
+    [data-theme="dark"] .main-header { color: #F8FAFC; }
+    
+    .sub-header { font-size: 1rem; color: #475569; margin-bottom: 2rem; text-align: center; font-weight: 500; }
+    [data-theme="dark"] .sub-header { color: #94A3B8; }
+
+    .metric-card { 
+        background: var(--background-color, white); 
+        padding: 20px; 
+        border-radius: 12px; 
+        border: 1px solid #E2E8F0; 
+        text-align: center; 
+        box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+    }
+    [data-theme="dark"] .metric-card { border-color: #334155; }
+    
     .metric-val { font-size: 1.8rem; font-weight: 700; color: #2563EB; }
     .metric-label { font-size: 0.8rem; color: #64748B; font-weight: 600; margin-top: 5px; }
-    .stButton>button { width: 100%; background-color: #2563EB; color: white; border-radius: 8px; padding: 0.7rem; font-weight: 600; border: none; }
+    [data-theme="dark"] .metric-label { color: #94A3B8; }
+
+    .stButton>button { 
+        width: 100%; 
+        background-color: #2563EB; 
+        color: white !important; 
+        border-radius: 8px; 
+        padding: 0.7rem; 
+        font-weight: 600; 
+        border: none;
+        transition: all 0.2s ease;
+    }
+    .stButton>button:hover { background-color: #1D4ED8; transform: translateY(-1px); }
+    
+    /* 파일 업로드 텍스트 시인성 개선 */
+    .stFileUploader section { background-color: #F8FAFC; border-radius: 10px; }
+    [data-theme="dark"] .stFileUploader section { background-color: #1E293B; }
 </style>
 """, unsafe_allow_html=True)
 
@@ -60,9 +93,9 @@ st.markdown('<p class="sub-header">아이템스카우트 데이터 정밀 분석
 # 대시보드 분석 기준 안내
 with st.expander("💡 분석 기준 안내 (자세히 보려면 클릭)"):
     st.markdown("""
-    <div style="background-color: white; padding: 10px; border-radius: 10px;">
+    <div style="background-color: transparent; padding: 10px; border-radius: 10px; border: 1px solid #E2E8F0;">
     <table style="width:100%; border-collapse: collapse; font-size: 14px; text-align: center;">
-        <tr style="background-color: #F1F5F9; font-weight: bold; border-bottom: 2px solid #E2E8F0;">
+        <tr style="background-color: #F8FAFC; font-weight: bold; border-bottom: 2px solid #E2E8F0; color: #1E293B;">
             <th style="padding: 12px;">구분</th>
             <th style="padding: 12px;">지표명</th>
             <th style="padding: 12px;">기준점 (수치)</th>
@@ -97,10 +130,10 @@ with st.expander("💡 분석 기준 안내 (자세히 보려면 클릭)"):
     """, unsafe_allow_html=True)
     st.markdown("<br>", unsafe_allow_html=True)
 
-col1, col2 = st.columns([1, 2], gap="large")
+col1, col2 = st.columns([1, 1.5], gap="large")
 
 with col1:
-    st.markdown('<div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0;">', unsafe_allow_html=True)
+    st.markdown('<div style="padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0; margin-bottom: 20px;">', unsafe_allow_html=True)
     st.subheader("⚙️ 분석 설정")
     target_cat_input = st.text_input("분석 카테고리명", value="실버용품")
     start_yymm = st.text_input("시작 월 (YYMM)", value="2601")
