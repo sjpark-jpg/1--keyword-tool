@@ -103,7 +103,7 @@ with col1:
     st.markdown('<div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0;">', unsafe_allow_html=True)
     st.subheader("⚙️ 분석 설정")
     target_cat_input = st.text_input("분석 카테고리명", value="실버용품")
-    start_yymm = st.text_input("시작 월 (YYMM)", value="2401")
+    start_yymm = st.text_input("시작 월 (YYMM)", value="2601")
     st.markdown("---")
     st.write("📂 **데이터 업로드** (엑셀 파일 선택)")
     uploaded = st.file_uploader("", accept_multiple_files=True, label_visibility="collapsed")
@@ -129,30 +129,49 @@ with col2:
                     kw_map = {}
                     first_df = pd.read_excel(files[0])
                     
-                    # 지능형 뎁스 판별
+                    # 지능형 뎁스 판별 (특수문자 무시 매칭)
+                    def normalize(text):
+                        return re.sub(r'[^a-zA-Z0-9가-힣]', '', str(text)) if text else ""
+                    
+                    norm_target = normalize(target_cat_input)
                     t_depth, act_cat = None, target_cat_input
-                    sample_cats = first_df['대표 카테고리'].dropna().unique()[:50]
-                    for c_str in sample_cats:
-                        parts = [p.strip() for p in str(c_str).split('>')]
-                        if target_cat_input in parts: t_depth = parts.index(target_cat_input) + 1; break
+                    
+                    # 모든 행을 뒤져서 특수문자 무시하고 매칭되는 뎁스 찾기
+                    sample_cats = first_df['대표 카테고리'].dropna().unique()[:100]
+                    for cat_str in sample_cats:
+                        parts = [p.strip() for p in str(cat_str).split('>')]
+                        for idx, p in enumerate(parts):
+                            if normalize(p) == norm_target:
+                                t_depth = idx + 1
+                                act_cat = p # 실제 데이터에 적힌 정확한 명칭 보관
+                                break
+                        if t_depth: break
+                    
                     if not t_depth:
-                        t_depth = first_df['대표 카테고리'].apply(lambda x: len(str(x).split('>')) if '>' in str(x) else 0).mode()[0]
-                        act_cat = first_df['대표 카테고리'].apply(lambda x: str(x).split('>')[t_depth-1].strip() if len(str(x).split('>')) >= t_depth else None).value_counts().idxmax()
+                        st.error(f"❌ 카테고리 [{target_cat_input}]를 데이터에서 찾을 수 없습니다.")
+                        st.info("데이터에 포함된 카테고리명을 정확히 입력하거나, '스포츠/레저'처럼 슬래시를 포함해 보세요.")
+                        st.stop()
                     
                     st.info(f"🔍 분석 기준: {t_depth}차 카테고리 [{act_cat}]")
 
                     # 2. 데이터 수집
                     for idx, f in enumerate(files):
                         df = pd.read_excel(f)
-                        df['target'] = df['대표 카테고리'].apply(lambda x: str(x).split('>')[t_depth-1].strip() if len(str(x).split('>')) >= t_depth else None)
-                        
                         # 검색수 숫자 변환 (비수치 데이터 '-' 등 처리)
                         df['총 검색수'] = pd.to_numeric(df['총 검색수'], errors='coerce').fillna(0)
                         
-                        for _, row in df[df['target'] == act_cat].iterrows():
-                            kw = str(row['키워드']).strip()
-                            if kw not in kw_map: kw_map[kw] = [0] * len(files)
-                            kw_map[kw][idx] = float(row['총 검색수'])
+                        # 뎁스에 맞는 카테고리 추출 및 노멀라이즈 비교
+                        def get_match(cat_full, target_depth, target_norm):
+                            ps = [p.strip() for p in str(cat_full).split('>')]
+                            if len(ps) >= target_depth and normalize(ps[target_depth-1]) == target_norm:
+                                return True
+                            return False
+
+                        for _, row in df.iterrows():
+                            if get_match(row['대표 카테고리'], t_depth, norm_target):
+                                kw = str(row['키워드']).strip()
+                                if kw not in kw_map: kw_map[kw] = [0] * len(files)
+                                kw_map[kw][idx] = float(row['총 검색수'])
                     
                     # 3. 분류 (Colab 엔진과 100% 동일)
                     results = {'사계절키워드': [], '시즌키워드': [], '성장키워드': []}
