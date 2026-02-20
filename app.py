@@ -1,45 +1,181 @@
 import streamlit as st
 import pandas as pd
+import os
+import re
+from datetime import datetime
 from openpyxl.styles import PatternFill, Font, Alignment
 from io import BytesIO
-import datetime
 
-st.set_page_config(page_title="Keyword Master Pro", layout="wide")
-st.markdown('<h1 style="color: #1E293B; text-align: center;">📈 Keyword Master Pro</h1>', unsafe_allow_html=True)
+# --- 페이지 설정 및 프리미엄 스타일 ---
+st.set_page_config(page_title="Keyword Master Pro", page_icon="📈", layout="wide")
 
-def analyze(uploaded, cat, start_m):
-    files = sorted(uploaded, key=lambda x: x.name)
-    y, m = int(start_m[:2]), int(start_m[2:])
-    m_names = [f"{(y + (m+i-1)//12):02d}{(m+i-1)%12+1:02d}" for i in range(len(files))]
-    kw_map = {}
-    for idx, f in enumerate(files):
-        df = pd.read_excel(f)
-        for _, row in df.iterrows():
-            if cat.strip() in str(row['대표 카테고리']):
-                kw = str(row['키워드']).strip()
-                if kw not in kw_map: kw_map[kw] = [0] * len(files)
-                kw_map[kw][idx] = float(row['총 검색수']) if not pd.isna(row['총 검색수']) else 0
-    res = {'사계절': [], '시즌': [], '성장': []}
-    for kw, counts in kw_map.items():
-        avg = sum(counts)/len(counts)
-        if avg < 3000: continue
-        res['사계절'].append([kw] + counts + [round(avg), "Gold" if avg >= 10000 else "Silver", "정상"])
-    return res, m_names
+st.markdown("""
+<style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap');
+    html, body, [class*="css"] { font-family: 'Inter', sans-serif; }
+    .stApp { background-color: #F8FAFC; }
+    .main-header { font-size: 2.2rem; font-weight: 700; color: #1E293B; margin-bottom: 0.5rem; text-align: center; }
+    .sub-header { font-size: 1rem; color: #64748B; margin-bottom: 2rem; text-align: center; }
+    .metric-card { background: white; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0; text-align: center; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+    .metric-val { font-size: 1.8rem; font-weight: 700; color: #2563EB; }
+    .metric-label { font-size: 0.8rem; color: #64748B; font-weight: 600; margin-top: 5px; }
+    .stButton>button { width: 100%; background-color: #2563EB; color: white; border-radius: 8px; padding: 0.7rem; font-weight: 600; border: none; }
+</style>
+""", unsafe_allow_html=True)
 
-col1, col2 = st.columns([1, 2])
+# --- 엑셀 스타일링 함수 (Colab 버전과 100% 일치) ---
+def get_styled_excel(writer, results, highlight_map, month_names):
+    h_fill = PatternFill(start_color="D9D9D9", end_color="D9D9D9", fill_type="solid")
+    b_fill = PatternFill(start_color="FCE4D6", end_color="FCE4D6", fill_type="solid")
+    headers = ["키워드"] + [f"{int(m[2:])}월" for m in month_names]
+    
+    for sn in ['사계절키워드', '시즌키워드', '성장키워드']:
+        data = results[sn]
+        extra = ["평균검색량", "규모등급", "안정성"] if sn == "사계절키워드" else (["피크월", "규모등급", "소싱타이밍"] if sn == "시즌키워드" else ["상승구간", "규모등급", "성장유형"])
+        df = pd.DataFrame(data if data else [["해당 키워드 없음"] + ["-"]*(len(headers)+len(extra)-1)], columns=headers + extra)
+        df.to_excel(writer, sheet_name=sn, index=False)
+        
+        ws = writer.sheets[sn]
+        for col in ws.columns:
+            max_len = 0
+            for cell in col:
+                if cell.value:
+                    v_str = str(cell.value)
+                    cur_len = sum(2 if ord(c) > 128 else 1 for c in v_str)
+                    if cur_len > max_len: max_len = cur_len
+            ws.column_dimensions[col[0].column_letter].width = min(max_len + 4, 60)
+            for cell in col:
+                cell.alignment = Alignment(vertical='center', horizontal='center')
+                if cell.row == 1: cell.fill, cell.font = h_fill, Font(bold=True)
+                if cell.column == 1: cell.alignment = Alignment(vertical='center', horizontal='left')
+        
+        if sn in highlight_map:
+            for r_idx, cols in highlight_map[sn].items():
+                for c_idx in cols: ws.cell(row=r_idx + 2, column=c_idx + 1).fill = b_fill
+
+# --- 메인 화면 레이아웃 ---
+st.markdown('<p class="main-header">📈 Keyword Master Pro</p>', unsafe_allow_html=True)
+st.markdown('<p class="sub-header">아이템스카우트 데이터 정밀 분석 프리미엄 대시보드</p>', unsafe_allow_html=True)
+
+# 대시보드 분석 기준 안내
+with st.expander("💡 분석 기준 안내"):
+    c1, c2, c3 = st.columns(3)
+    c1.info("**사계절 스테디**\n- 평균 3천↑\n- 변동폭 30% 미만\n- 탄탄한 수요")
+    c2.warning("**시즌 트렌드**\n- 피크월 대비 4개월 전 추천\n- 특정 월 수요 폭증")
+    c3.success("**성장 키워드**\n- 꾸준히 우상향\n- 상승률에 따른 유형 분류")
+
+col1, col2 = st.columns([1, 2], gap="large")
+
 with col1:
-    st.subheader("⚙️ 설정")
-    cat = st.text_input("카테고리명", value="실버용품")
-    s_m = st.text_input("시작월(YYMM)", value="2501")
-    uploaded = st.file_uploader("엑셀 파일 전부 선택", accept_multiple_files=True)
-    btn = st.button("🚀 분석 시작")
+    st.markdown('<div style="background: white; padding: 20px; border-radius: 12px; border: 1px solid #E2E8F0;">', unsafe_allow_html=True)
+    st.subheader("⚙️ 분석 설정")
+    target_cat_input = st.text_input("분석 카테고리명", value="실버용품")
+    start_yymm = st.text_input("시작 월 (YYMM)", value="2401")
+    st.markdown("---")
+    st.write("📂 **데이터 업로드** (엑셀 파일 선택)")
+    uploaded = st.file_uploader("", accept_multiple_files=True, label_visibility="collapsed")
+    analyze_btn = st.button("🚀 정밀 분석 시작")
+    st.markdown('</div>', unsafe_allow_html=True)
 
-if btn and uploaded:
-    with st.spinner("분석 중..."):
-        res, m_names = analyze(uploaded, cat, s_m)
-        with col2:
-            st.success("분석 완료!")
-            o = BytesIO()
-            with pd.ExcelWriter(o, engine='openpyxl') as w:
-                for k, v in res.items(): pd.DataFrame(v, columns=["키워드"]+m_names+["평균","등급","비고"]).to_excel(w, sheet_name=k, index=False)
-            st.download_button("📥 결과 다운로드", o.getvalue(), f"{cat}_분석결과.xlsx")
+with col2:
+    if analyze_btn:
+        if not uploaded:
+            st.error("파일을 먼저 업로드해주세요!")
+        else:
+            with st.spinner("전문 엔진 분석 중..."):
+                try:
+                    # 1. 파일 처리
+                    files = sorted(uploaded, key=lambda x: x.name)
+                    year, m_start = int(start_yymm[:2]), int(start_yymm[2:])
+                    month_names = []
+                    for i in range(len(files)):
+                        cm, cy = m_start + i, year
+                        while cm > 12: cm -= 12; cy += 1
+                        month_names.append(f"{cy:02d}{cm:02d}")
+                    
+                    kw_map = {}
+                    first_df = pd.read_excel(files[0])
+                    
+                    # 지능형 뎁스 판별
+                    t_depth, act_cat = None, target_cat_input
+                    sample_cats = first_df['대표 카테고리'].dropna().unique()[:50]
+                    for c_str in sample_cats:
+                        parts = [p.strip() for p in str(c_str).split('>')]
+                        if target_cat_input in parts: t_depth = parts.index(target_cat_input) + 1; break
+                    if not t_depth:
+                        t_depth = first_df['대표 카테고리'].apply(lambda x: len(str(x).split('>')) if '>' in str(x) else 0).mode()[0]
+                        act_cat = first_df['대표 카테고리'].apply(lambda x: str(x).split('>')[t_depth-1].strip() if len(str(x).split('>')) >= t_depth else None).value_counts().idxmax()
+                    
+                    st.info(f"🔍 분석 기준: {t_depth}차 카테고리 [{act_cat}]")
+
+                    # 2. 데이터 수집
+                    for idx, f in enumerate(files):
+                        df = pd.read_excel(f)
+                        df['target'] = df['대표 카테고리'].apply(lambda x: str(x).split('>')[t_depth-1].strip() if len(str(x).split('>')) >= t_depth else None)
+                        for _, row in df[df['target'] == act_cat].iterrows():
+                            kw = str(row['키워드']).strip()
+                            if kw not in kw_map: kw_map[kw] = [0] * len(files)
+                            kw_map[kw][idx] = float(row['총 검색수']) if not pd.isna(row['총 검색수']) else 0
+                    
+                    # 3. 분류 (Colab 엔진과 100% 동일)
+                    results = {'사계절키워드': [], '시즌키워드': [], '성장키워드': []}
+                    highlight_map, total_found = {}, 0
+                    for kw, counts in kw_map.items():
+                        valid = [c for c in counts if c > 0]
+                        if len(valid) < 2: continue
+                        avg = sum(valid) / len(valid)
+                        if avg < 3000: continue
+                        total_found += 1
+                        grade = "Gold" if avg >= 10000 else ("Silver" if avg >= 5000 else "Bronze")
+                        
+                        vars = [abs(counts[i+1]-counts[i])/counts[i] for i in range(len(counts)-1) if counts[i]>0 and counts[i+1]>0]
+                        if vars and all(v < 0.3 for v in vars) and all(c > 0 for c in counts):
+                            m_v = max(vars); stab = "A+" if m_v < 0.1 else ("A" if m_v < 0.2 else "B")
+                            results['사계절키워드'].append([kw] + counts + [round(avg), grade, stab])
+                            continue
+                        if max(counts) >= avg * 1.3:
+                            p_idx = counts.index(max(counts))
+                            results['시즌키워드'].append([kw] + counts + [f"{int(month_names[p_idx][2:])}월", grade, f"{int(month_names[(p_idx-4)%len(month_names)][2:])}월"])
+                            highlight_map.setdefault('시즌키워드', {})[len(results['시즌키워드'])-1] = [p_idx + 1]
+                            continue
+                        g_ps, g_cs, s_idx, cnt, t_rate, steps = [], [], -1, 0, 0, 0
+                        for i in range(len(counts)-1):
+                            if counts[i] > 0 and counts[i+1] >= counts[i] * 1.05:
+                                t_rate += (counts[i+1]-counts[i])/counts[i]; steps += 1
+                                if s_idx == -1: s_idx = i; cnt = 2
+                                else: cnt += 1
+                            else:
+                                if cnt >= 3:
+                                    g_ps.append(f"{int(month_names[s_idx][2:])}→{int(month_names[i][2:])}월")
+                                    g_cs.extend(range(s_idx + 1, i + 2))
+                                s_idx, cnt = -1, 0
+                        if cnt >= 3:
+                            g_ps.append(f"{int(month_names[s_idx][2:])}→{int(month_names[-1][2:])}월")
+                            g_cs.extend(range(s_idx + 1, len(counts) + 1))
+                        if g_ps:
+                            results['성장키워드'].append([kw] + counts + [", ".join(g_ps), grade, "폭발" if (t_rate/steps) >= 0.2 else "꾸준"])
+                            highlight_map.setdefault('성장키워드', {})[len(results['성장키워드'])-1] = list(set(g_cs))
+
+                    # 4. 결과 출력
+                    st.balloons()
+                    st.success(f"[{act_cat}] 분석 완료!")
+                    d1, d2, d3 = st.columns(3)
+                    d1.markdown(f'<div class="metric-card"><div class="metric-val">{len(results["사계절키워드"])}</div><div class="metric-label">사계절 스테디</div></div>', unsafe_allow_html=True)
+                    d2.markdown(f'<div class="metric-card"><div class="metric-val">{len(results["시즌키워드"])}</div><div class="metric-label">시즌 트렌드</div></div>', unsafe_allow_html=True)
+                    d3.markdown(f'<div class="metric-card"><div class="metric-val">{len(results["성장키워드"])}</div><div class="metric-label">급성장 유망</div></div>', unsafe_allow_html=True)
+                    
+                    output = BytesIO()
+                    with pd.ExcelWriter(output, engine='openpyxl') as writer:
+                        get_styled_excel(writer, results, highlight_map, month_names)
+                    
+                    st.markdown("---")
+                    st.download_button(
+                        label="📥 정밀 분석 리포트 다운로드 (Excel)",
+                        data=output.getvalue(),
+                        file_name=f"Result_{act_cat}.xlsx",
+                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
+                    )
+                except Exception as e:
+                    st.error(f"오류: {e}")
+    else:
+        st.info("왼쪽 대시보드에서 파일을 업로드하고 버튼을 눌러주세요.")
