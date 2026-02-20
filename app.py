@@ -106,8 +106,21 @@ with col1:
     start_yymm = st.text_input("시작 월 (YYMM)", value="2601")
     st.markdown("---")
     st.write("📂 **데이터 업로드** (엑셀 파일 선택)")
-    uploaded = st.file_uploader("", accept_multiple_files=True, label_visibility="collapsed")
-    analyze_btn = st.button("🚀 정밀 분석 시작")
+    
+    # 파일 업로더 초기화용 키 설정
+    if 'file_key' not in st.session_state:
+        st.session_state['file_key'] = 0
+
+    uploaded = st.file_uploader("", accept_multiple_files=True, label_visibility="collapsed", key=f"uploader_{st.session_state['file_key']}")
+    
+    # 버튼 나란히 배치
+    btn_col1, btn_col2 = st.columns(2)
+    with btn_col1:
+        analyze_btn = st.button("🚀 정밀 분석 시작")
+    with btn_col2:
+        if st.button("🗑️ 일괄 삭제"):
+            st.session_state['file_key'] += 1
+            st.rerun()
     st.markdown('</div>', unsafe_allow_html=True)
 
 with col2:
