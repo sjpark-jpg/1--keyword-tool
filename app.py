@@ -145,10 +145,14 @@ with col2:
                     for idx, f in enumerate(files):
                         df = pd.read_excel(f)
                         df['target'] = df['대표 카테고리'].apply(lambda x: str(x).split('>')[t_depth-1].strip() if len(str(x).split('>')) >= t_depth else None)
+                        
+                        # 검색수 숫자 변환 (비수치 데이터 '-' 등 처리)
+                        df['총 검색수'] = pd.to_numeric(df['총 검색수'], errors='coerce').fillna(0)
+                        
                         for _, row in df[df['target'] == act_cat].iterrows():
                             kw = str(row['키워드']).strip()
                             if kw not in kw_map: kw_map[kw] = [0] * len(files)
-                            kw_map[kw][idx] = float(row['총 검색수']) if not pd.isna(row['총 검색수']) else 0
+                            kw_map[kw][idx] = float(row['총 검색수'])
                     
                     # 3. 분류 (Colab 엔진과 100% 동일)
                     results = {'사계절키워드': [], '시즌키워드': [], '성장키워드': []}
